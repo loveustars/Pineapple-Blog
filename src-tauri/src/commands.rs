@@ -1,6 +1,5 @@
 use std::path::PathBuf;
-use crate::engine::{create_engine, SiteEngine};
-use crate::error::Result;
+use crate::engine::create_engine;
 use crate::models::{BuildOptions, BuildResult, EngineType, Project};
 use crate::utils::{ensure_directory_exists, validate_path};
 
@@ -21,15 +20,18 @@ pub async fn create_project(
     let engine_adapter = create_engine(engine.clone()).map_err(|e| e.to_string())?;
 
     // Initialize the site
-    if let Some(parent) = project_path.parent() {
+    let site_path = if let Some(parent) = project_path.parent() {
         engine_adapter
             .init(parent, &name)
             .await
             .map_err(|e| e.to_string())?;
-    }
+        parent.join(&name)
+    } else {
+        project_path.clone()
+    };
 
     // Create project model
-    let project = Project::new(name, project_path.join(&name), engine);
+    let project = Project::new(name, site_path, engine);
 
     Ok(project)
 }

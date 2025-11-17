@@ -42,22 +42,5 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {
-    "dialog": {
-      "all": true,
-      "ask": true,
-      "confirm": true,
-      "message": true,
-      "open": true,
-      "save": true
-    },
-    "fs": {
-      "all": true,
-      "scope": ["**"]
-    },
-    "shell": {
-      "all": false,
-      "open": true
-    }
-  }
+  "plugins": {}
 }
