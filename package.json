@@ -15,6 +15,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@monaco-editor/loader": "^1.6.1",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",

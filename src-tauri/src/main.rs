@@ -22,6 +22,8 @@ fn main() {
             create_post,
             get_engine_version,
             list_posts,
+            read_file,
+            save_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

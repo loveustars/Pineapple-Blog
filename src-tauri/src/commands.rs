@@ -123,6 +123,18 @@ pub async fn get_engine_version(engine: EngineType) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn read_file(file_path: String) -> Result<String, String> {
+    fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))
+}
+
+#[tauri::command]
+pub async fn save_file(file_path: String, content: String) -> Result<(), String> {
+    fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to save file: {}", e))
+}
+
+#[tauri::command]
 pub async fn list_posts(
     project_path: String,
     _engine: EngineType,
