@@ -30,8 +30,24 @@
         class="flex flex-col overflow-hidden border-r border-gray-200 transition-all duration-300"
         :class="showPreview ? 'w-1/2' : 'w-full'"
       >
+        <!-- Front Matter 编辑器 -->
+        <FrontMatterEditor
+          :front-matter="frontMatter"
+          :collapsed="frontMatterCollapsed"
+          @update="handleFrontMatterUpdate"
+          @toggle="frontMatterCollapsed = !frontMatterCollapsed"
+        />
+
+        <!-- Markdown 工具栏 -->
+        <MarkdownToolbar
+          :textarea-ref="textareaRef"
+          @insert="handleInsertText"
+        />
+
+        <!-- Markdown 编辑器 -->
         <textarea
-          v-model="content"
+          ref="textareaRef"
+          v-model="markdownContent"
           @input="handleContentChange"
           class="flex-1 w-full p-6 font-mono text-sm resize-none focus:outline-none bg-white overflow-y-auto"
           placeholder="在这里开始写作...
@@ -75,9 +91,13 @@ import { useRouter, useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { useMarkdownStats } from '@/composables/useEditor'
 import { useMarkdownPreview } from '@/composables/useMarkdownPreview'
+import { parseHugoPost, serializeHugoPost, formatDateForInput } from '@/utils/frontMatter'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import EditorStatusBar from '@/components/EditorStatusBar.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import FrontMatterEditor from '@/components/FrontMatterEditor.vue'
+import MarkdownToolbar from '@/components/MarkdownToolbar.vue'
+import type { FrontMatter } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -85,15 +105,25 @@ const { parse, debounce } = useMarkdownPreview()
 
 const filePath = ref('')
 const fileName = ref('未命名文档')
-const content = ref('')
+const markdownContent = ref('')
+const frontMatter = ref<FrontMatter>({
+  title: '',
+  date: new Date().toISOString(),
+  draft: true,
+  tags: [],
+  categories: [],
+})
 const originalContent = ref('')
 const saving = ref(false)
 const lastSaved = ref<Date | null>(null)
 const showPreview = ref(true)
 const previewHtml = ref('')
+const frontMatterCollapsed = ref(false)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-const hasUnsavedChanges = computed(() => content.value !== originalContent.value)
-const stats = computed(() => useMarkdownStats(content.value))
+const fullContent = computed(() => serializeHugoPost(frontMatter.value, markdownContent.value))
+const hasUnsavedChanges = computed(() => fullContent.value !== originalContent.value)
+const stats = computed(() => useMarkdownStats(markdownContent.value))
 
 let saveTimeout: number | null = null
 
@@ -107,6 +137,32 @@ const handleContentChange = () => {
   }, 3000)
 }
 
+const handleFrontMatterUpdate = (updated: FrontMatter) => {
+  frontMatter.value = { ...updated }
+  handleContentChange()
+}
+
+const handleInsertText = (text: string, cursorOffset: number = 0) => {
+  if (!textareaRef.value) return
+
+  const textarea = textareaRef.value
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const before = markdownContent.value.substring(0, start)
+  const after = markdownContent.value.substring(end)
+
+  markdownContent.value = before + text + after
+
+  // 设置光标位置
+  setTimeout(() => {
+    const newPosition = start + text.length + cursorOffset
+    textarea.focus()
+    textarea.setSelectionRange(newPosition, newPosition)
+  }, 0)
+
+  handleContentChange()
+}
+
 const handleSave = async () => {
   if (!filePath.value || saving.value) return
   
@@ -114,9 +170,9 @@ const handleSave = async () => {
   try {
     await invoke('save_file', {
       filePath: filePath.value,
-      content: content.value,
+      content: fullContent.value,
     })
-    originalContent.value = content.value
+    originalContent.value = fullContent.value
     lastSaved.value = new Date()
   } catch (err) {
     console.error('保存失败:', err)
@@ -150,10 +206,18 @@ const loadFile = async () => {
     const fileContent = await invoke<string>('read_file', {
       filePath: postPath,
     })
-    content.value = fileContent
+    
+    // 解析 Hugo 文章结构
+    const parsed = parseHugoPost(fileContent)
+    frontMatter.value = {
+      ...parsed.frontMatter,
+      date: formatDateForInput(parsed.frontMatter.date),
+    }
+    markdownContent.value = parsed.markdown
     originalContent.value = fileContent
+    
     // 初始化预览
-    previewHtml.value = await parse(fileContent)
+    previewHtml.value = await parse(parsed.markdown)
   } catch (err) {
     console.error('读取文件失败:', err)
     alert(`读取文件失败: ${err}`)
@@ -163,10 +227,10 @@ const loadFile = async () => {
 
 // 实时更新预览
 const updatePreview = debounce(async () => {
-  previewHtml.value = await parse(content.value)
+  previewHtml.value = await parse(markdownContent.value)
 }, 300)
 
-watch(content, () => {
+watch(markdownContent, () => {
   if (showPreview.value) {
     updatePreview()
   }
