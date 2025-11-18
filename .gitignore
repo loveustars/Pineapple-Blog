@@ -30,13 +30,14 @@ lerna-debug.log*
 # Tauri
 /src-tauri/target
 
-.vscode/*
+/.vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
+/.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-PROJECT_SUMMARY.md
+/PROJECT_SUMMARY.md
+
