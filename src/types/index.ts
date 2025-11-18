@@ -29,6 +29,12 @@ export interface BuildResult {
   errors: string[]
 }
 
+export interface PostInfo {
+  title: string
+  path: string
+  date?: string
+}
+
 export interface Post {
   title: string
   path: string

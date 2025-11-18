@@ -1,7 +1,16 @@
 use std::path::PathBuf;
+use std::fs;
 use crate::engine::create_engine;
-use crate::models::{BuildOptions, BuildResult, EngineType, Project};
+use crate::models::{BuildOptions, BuildResult, EngineType, Project, Post};
 use crate::utils::{ensure_directory_exists, validate_path};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostInfo {
+    pub title: String,
+    pub path: String,
+    pub date: Option<String>,
+}
 
 #[tauri::command]
 pub async fn create_project(
@@ -121,4 +130,63 @@ pub async fn get_engine_version(engine: EngineType) -> Result<String, String> {
     let engine_adapter = create_engine(engine).map_err(|e| e.to_string())?;
     let version = engine_adapter.version().map_err(|e| e.to_string())?;
     Ok(version)
+}
+
+#[tauri::command]
+pub async fn list_posts(
+    project_path: String,
+    engine: EngineType,
+) -> Result<Vec<PostInfo>, String> {
+    let path = PathBuf::from(&project_path);
+    let content_dir = match engine {
+        EngineType::Hugo => path.join("content"),
+        EngineType::Zola => path.join("content"),
+    };
+
+    if !content_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut posts = Vec::new();
+    
+    // Recursively scan for markdown files
+    fn scan_dir(dir: &PathBuf, posts: &mut Vec<PostInfo>) -> Result<(), String> {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    scan_dir(&path, posts)?;
+                } else if let Some(ext) = path.extension() {
+                    if ext == "md" || ext == "markdown" {
+                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            // Skip _index.md files
+                            if file_name.starts_with('_') {
+                                continue;
+                            }
+                            
+                            let title = file_name
+                                .trim_end_matches(".md")
+                                .trim_end_matches(".markdown")
+                                .replace('-', " ")
+                                .replace('_', " ");
+                            
+                            posts.push(PostInfo {
+                                title,
+                                path: path.to_string_lossy().to_string(),
+                                date: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    scan_dir(&content_dir, &mut posts)?;
+    
+    // Sort by path (newest first, assuming date-based naming)
+    posts.sort_by(|a, b| b.path.cmp(&a.path));
+    
+    Ok(posts)
 }

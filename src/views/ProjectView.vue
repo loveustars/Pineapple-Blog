@@ -17,8 +17,21 @@
 
         <div class="pt-4">
           <h3 class="text-xs font-semibold text-gray-500 uppercase mb-2">文章列表</h3>
-          <div class="text-sm text-gray-600">
+          <div v-if="loadingPosts" class="text-sm text-gray-500">
+            <p>加载中...</p>
+          </div>
+          <div v-else-if="posts.length === 0" class="text-sm text-gray-600">
             <p>暂无文章</p>
+          </div>
+          <div v-else class="space-y-1">
+            <button
+              v-for="post in posts"
+              :key="post.path"
+              @click="openPost(post)"
+              class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-100 transition text-gray-700 truncate"
+            >
+              📄 {{ post.title }}
+            </button>
           </div>
         </div>
       </nav>
@@ -112,18 +125,40 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useProjectStore } from '@/stores/projectStore'
 import { useProject } from '@/composables/useProject'
-import type { Project } from '@/types'
+import type { Project, PostInfo } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
 const projectStore = useProjectStore()
-const { createPost, loading, error } = useProject()
+const { createPost, listPosts, loading, error } = useProject()
 
 const showNewPostDialog = ref(false)
 const newPostTitle = ref('')
 const successMessage = ref('')
+const posts = ref<PostInfo[]>([])
+const loadingPosts = ref(false)
 
 const currentProject = computed(() => projectStore.currentProject)
+
+const loadPosts = async () => {
+  if (!currentProject.value) return
+  
+  loadingPosts.value = true
+  posts.value = await listPosts(
+    currentProject.value.path,
+    currentProject.value.engine
+  )
+  loadingPosts.value = false
+}
+
+const openPost = (post: PostInfo) => {
+  // Store selected post and navigate to editor
+  router.push({
+    name: 'editor',
+    params: { id: currentProject.value?.id },
+    query: { postPath: post.path }
+  })
+}
 
 const handleCreatePost = async () => {
   if (!currentProject.value || !newPostTitle.value) return
@@ -137,6 +172,8 @@ const handleCreatePost = async () => {
 
   if (postPath) {
     successMessage.value = `文章创建成功: ${postPath}`
+    // Reload posts list
+    await loadPosts()
     setTimeout(() => {
       showNewPostDialog.value = false
       newPostTitle.value = ''
@@ -145,7 +182,7 @@ const handleCreatePost = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // Load project if not already loaded
   if (!currentProject.value) {
     const projectId = route.params.id
@@ -155,5 +192,8 @@ onMounted(() => {
       projectStore.setCurrentProject(project)
     }
   }
+  
+  // Load posts
+  await loadPosts()
 })
 </script>

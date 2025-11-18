@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { Project, BuildOptions, BuildResult } from '@/types'
+import type { Project, BuildOptions, BuildResult, PostInfo } from '@/types'
 
 export function useProject() {
   const loading = ref(false)
@@ -123,6 +123,27 @@ export function useProject() {
     }
   }
 
+  const listPosts = async (
+    projectPath: string,
+    engine: 'Hugo' | 'Zola'
+  ): Promise<PostInfo[]> => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const posts = await invoke<PostInfo[]>('list_posts', {
+        projectPath,
+        engine,
+      })
+      return posts
+    } catch (e) {
+      error.value = String(e)
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     loading,
     error,
@@ -132,5 +153,6 @@ export function useProject() {
     serveProject,
     createPost,
     getEngineVersion,
+    listPosts,
   }
 }
