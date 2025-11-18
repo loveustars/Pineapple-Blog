@@ -9,15 +9,32 @@
       :last-saved="lastSaved"
       @back="handleBack"
       @save="handleSave"
-    />
+    >
+      <template #actions>
+        <button
+          @click="showPreview = !showPreview"
+          class="px-3 py-1.5 text-sm rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
+          :class="showPreview ? 'bg-primary-100 text-primary-700' : 'text-gray-700'"
+        >
+          <span v-if="showPreview">👁️</span>
+          <span v-else>👁️‍🗨️</span>
+          {{ showPreview ? '隐藏预览' : '显示预览' }}
+        </button>
+      </template>
+    </EditorToolbar>
 
     <!-- Editor Container -->
-    <div class="flex-1 relative overflow-hidden">
-      <textarea
-        v-model="content"
-        @input="handleContentChange"
-        class="w-full h-full p-6 font-mono text-sm resize-none focus:outline-none bg-white"
-        placeholder="在这里开始写作...
+    <div class="flex-1 flex overflow-hidden min-h-0">
+      <!-- 编辑器面板 -->
+      <div 
+        class="flex flex-col overflow-hidden border-r border-gray-200 transition-all duration-300"
+        :class="showPreview ? 'w-1/2' : 'w-full'"
+      >
+        <textarea
+          v-model="content"
+          @input="handleContentChange"
+          class="flex-1 w-full p-6 font-mono text-sm resize-none focus:outline-none bg-white overflow-y-auto"
+          placeholder="在这里开始写作...
 
 # 我的第一篇文章
 
@@ -29,8 +46,17 @@
 - 列表项 2
 
 **粗体** 和 *斜体*"
-        spellcheck="false"
-      ></textarea>
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <!-- 预览面板 -->
+      <div 
+        v-if="showPreview"
+        class="w-1/2 overflow-hidden transition-all duration-300"
+      >
+        <MarkdownPreview :html="previewHtml" />
+      </div>
     </div>
 
     <!-- Status Bar -->
@@ -44,15 +70,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { useMarkdownStats } from '@/composables/useEditor'
+import { useMarkdownPreview } from '@/composables/useMarkdownPreview'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import EditorStatusBar from '@/components/EditorStatusBar.vue'
+import MarkdownPreview from '@/components/MarkdownPreview.vue'
 
 const router = useRouter()
 const route = useRoute()
+const { parse, debounce } = useMarkdownPreview()
 
 const filePath = ref('')
 const fileName = ref('未命名文档')
@@ -60,6 +89,8 @@ const content = ref('')
 const originalContent = ref('')
 const saving = ref(false)
 const lastSaved = ref<Date | null>(null)
+const showPreview = ref(true)
+const previewHtml = ref('')
 
 const hasUnsavedChanges = computed(() => content.value !== originalContent.value)
 const stats = computed(() => useMarkdownStats(content.value))
@@ -121,12 +152,25 @@ const loadFile = async () => {
     })
     content.value = fileContent
     originalContent.value = fileContent
+    // 初始化预览
+    previewHtml.value = await parse(fileContent)
   } catch (err) {
     console.error('读取文件失败:', err)
     alert(`读取文件失败: ${err}`)
     router.back()
   }
 }
+
+// 实时更新预览
+const updatePreview = debounce(async () => {
+  previewHtml.value = await parse(content.value)
+}, 300)
+
+watch(content, () => {
+  if (showPreview.value) {
+    updatePreview()
+  }
+})
 
 // 键盘快捷键
 const handleKeydown = (e: KeyboardEvent) => {

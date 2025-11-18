@@ -32,7 +32,8 @@
       </div>
 
       <!-- Actions -->
-      <slot name="actions">
+      <div class="flex items-center gap-2">
+        <slot name="actions"></slot>
         <button
           @click="$emit('save')"
           :disabled="!hasUnsavedChanges || saving"
@@ -40,7 +41,7 @@
         >
           {{ saving ? '保存中...' : '保存' }}
         </button>
-      </slot>
+      </div>
     </div>
   </div>
 </template>
