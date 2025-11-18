@@ -50,18 +50,8 @@ pub async fn open_project(path: String) -> Result<Project, String> {
     let project_path = PathBuf::from(&path);
     let validated_path = validate_path(&project_path).map_err(|e| e.to_string())?;
 
-    // Detect engine type by checking config files
-    let engine = if validated_path.join("config.toml").exists()
-        || validated_path.join("config.yaml").exists()
-        || validated_path.join("hugo.toml").exists()
-    {
-        EngineType::Hugo
-    } else if validated_path.join("config.toml").exists() {
-        // Zola also uses config.toml, need better detection
-        EngineType::Zola
-    } else {
-        return Err("Unable to detect project type".to_string());
-    };
+    // Always use Hugo as the engine
+    let engine = EngineType::Hugo;
 
     let name = validated_path
         .file_name()
@@ -135,13 +125,11 @@ pub async fn get_engine_version(engine: EngineType) -> Result<String, String> {
 #[tauri::command]
 pub async fn list_posts(
     project_path: String,
-    engine: EngineType,
+    _engine: EngineType,
 ) -> Result<Vec<PostInfo>, String> {
     let path = PathBuf::from(&project_path);
-    let content_dir = match engine {
-        EngineType::Hugo => path.join("content"),
-        EngineType::Zola => path.join("content"),
-    };
+    // Hugo uses content directory
+    let content_dir = path.join("content");
 
     if !content_dir.exists() {
         return Ok(vec![]);

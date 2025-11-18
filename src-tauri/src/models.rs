@@ -14,10 +14,9 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EngineType {
     Hugo,
-    Zola,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

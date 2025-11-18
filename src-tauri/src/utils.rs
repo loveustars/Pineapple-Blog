@@ -77,6 +77,7 @@ pub async fn execute_command(
     let output = Command::new(program)
         .args(args)
         .current_dir(working_dir)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

@@ -24,7 +24,7 @@
         >
           <div class="text-6xl mb-4">📂</div>
           <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-green-600">打开项目</h3>
-          <p class="text-gray-600">打开现有的 Hugo 或 Zola 项目</p>
+          <p class="text-gray-600">打开现有的 Hugo 项目</p>
         </button>
       </div>
 
@@ -70,23 +70,34 @@
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">项目路径</label>
-            <input
-              v-model="newProject.path"
-              type="text"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="/Users/username/projects"
-            />
+            <div class="flex gap-2">
+              <input
+                v-model="newProject.path"
+                type="text"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="/Users/username/projects"
+              />
+              <button
+                @click="selectProjectPath"
+                type="button"
+                class="px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition whitespace-nowrap"
+              >
+                📁 浏览...
+              </button>
+            </div>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">静态引擎</label>
-            <select
-              v-model="newProject.engine"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="Hugo">Hugo</option>
-              <option value="Zola">Zola</option>
-            </select>
+            <label class="block text-sm font-medium text-gray-700 mb-2">静态网站引擎</label>
+            <div class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">⚡</span>
+                <div>
+                  <div class="font-medium text-gray-800">Hugo</div>
+                  <div class="text-xs text-gray-500">快速灵活的静态网站生成器</div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -130,10 +141,22 @@ const showCreateDialog = ref(false)
 const newProject = ref({
   name: '',
   path: '',
-  engine: 'Hugo' as 'Hugo' | 'Zola',
+  engine: 'Hugo' as 'Hugo',
 })
 
 const recentProjects = computed(() => projectStore.recentProjects)
+
+const selectProjectPath = async () => {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: '选择项目父目录',
+  })
+
+  if (selected && typeof selected === 'string') {
+    newProject.value.path = selected
+  }
+}
 
 const handleCreateProject = async () => {
   const project = await createProject(

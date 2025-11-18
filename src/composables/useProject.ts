@@ -9,7 +9,7 @@ export function useProject() {
   const createProject = async (
     name: string,
     path: string,
-    engine: 'Hugo' | 'Zola'
+    engine: 'Hugo'
   ): Promise<Project | null> => {
     loading.value = true
     error.value = null
@@ -46,7 +46,7 @@ export function useProject() {
 
   const buildProject = async (
     projectPath: string,
-    engine: 'Hugo' | 'Zola',
+    engine: 'Hugo',
     options: BuildOptions
   ): Promise<BuildResult | null> => {
     loading.value = true
@@ -69,7 +69,7 @@ export function useProject() {
 
   const serveProject = async (
     projectPath: string,
-    engine: 'Hugo' | 'Zola',
+    engine: 'Hugo',
     port: number = 1313
   ): Promise<boolean> => {
     loading.value = true
@@ -92,7 +92,7 @@ export function useProject() {
 
   const createPost = async (
     projectPath: string,
-    engine: 'Hugo' | 'Zola',
+    engine: 'Hugo',
     title: string
   ): Promise<string | null> => {
     loading.value = true
@@ -113,7 +113,7 @@ export function useProject() {
     }
   }
 
-  const getEngineVersion = async (engine: 'Hugo' | 'Zola'): Promise<string | null> => {
+  const getEngineVersion = async (engine: 'Hugo'): Promise<string | null> => {
     try {
       const version = await invoke<string>('get_engine_version', { engine })
       return version
@@ -125,7 +125,7 @@ export function useProject() {
 
   const listPosts = async (
     projectPath: string,
-    engine: 'Hugo' | 'Zola'
+    engine: 'Hugo'
   ): Promise<PostInfo[]> => {
     loading.value = true
     error.value = null

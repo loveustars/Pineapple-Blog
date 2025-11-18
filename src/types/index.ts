@@ -2,7 +2,7 @@ export interface Project {
   id: string
   name: string
   path: string
-  engine: 'Hugo' | 'Zola'
+  engine: 'Hugo'
   theme?: string
   config: ProjectConfig
   created_at: string
