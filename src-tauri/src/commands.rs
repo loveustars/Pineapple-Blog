@@ -12,6 +12,19 @@ pub struct PostInfo {
     pub date: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileToWrite {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlogInitResult {
+    pub success: bool,
+    pub files_created: Vec<String>,
+    pub errors: Vec<String>,
+}
+
 #[tauri::command]
 pub async fn create_project(
     name: String,
@@ -189,4 +202,173 @@ pub async fn list_posts(
     posts.sort_by(|a, b| b.path.cmp(&a.path));
     
     Ok(posts)
+}
+
+/// 初始化博客项目 - 批量写入多个文件
+#[tauri::command]
+pub async fn init_blog(
+    project_path: String,
+    files: Vec<FileToWrite>,
+) -> Result<BlogInitResult, String> {
+    let base_path = PathBuf::from(&project_path);
+    let mut files_created = Vec::new();
+    let mut errors = Vec::new();
+
+    // 确保基础目录存在
+    if !base_path.exists() {
+        if let Err(e) = fs::create_dir_all(&base_path) {
+            return Err(format!("无法创建项目目录: {}", e));
+        }
+    }
+
+    for file in files {
+        let file_path = base_path.join(&file.path);
+        
+        // 确保父目录存在
+        if let Some(parent) = file_path.parent() {
+            if !parent.exists() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    errors.push(format!("创建目录失败 {}: {}", parent.display(), e));
+                    continue;
+                }
+            }
+        }
+
+        // 写入文件
+        match fs::write(&file_path, &file.content) {
+            Ok(_) => {
+                files_created.push(file.path);
+            }
+            Err(e) => {
+                errors.push(format!("写入文件失败 {}: {}", file.path, e));
+            }
+        }
+    }
+
+    Ok(BlogInitResult {
+        success: errors.is_empty(),
+        files_created,
+        errors,
+    })
+}
+
+/// 检查目录是否存在
+#[tauri::command]
+pub async fn check_directory_exists(path: String) -> Result<bool, String> {
+    let dir_path = PathBuf::from(&path);
+    Ok(dir_path.exists() && dir_path.is_dir())
+}
+
+/// 创建目录
+#[tauri::command]
+pub async fn create_directory(path: String) -> Result<(), String> {
+    let dir_path = PathBuf::from(&path);
+    fs::create_dir_all(&dir_path)
+        .map_err(|e| format!("创建目录失败: {}", e))
+}
+
+#[derive(Debug, Serialize)]
+pub struct BuildSiteResult {
+    pub success: bool,
+    pub output: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ServeSiteResult {
+    pub success: bool,
+    pub url: Option<String>,
+    pub error: Option<String>,
+}
+
+/// 构建网站（简化版本）
+#[tauri::command]
+pub async fn build_site(
+    project_path: String,
+    engine_type: String,
+) -> Result<BuildSiteResult, String> {
+    let path = PathBuf::from(&project_path);
+    
+    // 只支持 Hugo
+    let engine = EngineType::Hugo;
+    
+    let engine_adapter = create_engine(engine).map_err(|e| e.to_string())?;
+    
+    let options = BuildOptions {
+        minify: false,
+        clean: true,
+        draft: true,
+    };
+    
+    match engine_adapter.build(&path, &options).await {
+        Ok(result) => Ok(BuildSiteResult {
+            success: result.success,
+            output: result.output,
+            error: if result.errors.is_empty() {
+                None
+            } else {
+                Some(result.errors.join("\n"))
+            },
+        }),
+        Err(e) => Ok(BuildSiteResult {
+            success: false,
+            output: String::new(),
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+/// 预览网站
+#[tauri::command]
+pub async fn serve_site(
+    project_path: String,
+    engine_type: String,
+    port: u16,
+) -> Result<ServeSiteResult, String> {
+    let path = PathBuf::from(&project_path);
+    
+    // 只支持 Hugo
+    let engine = EngineType::Hugo;
+    
+    let engine_adapter = create_engine(engine).map_err(|e| e.to_string())?;
+    
+    match engine_adapter.serve(&path, port).await {
+        Ok(_) => Ok(ServeSiteResult {
+            success: true,
+            url: Some(format!("http://127.0.0.1:{}", port)),
+            error: None,
+        }),
+        Err(e) => Ok(ServeSiteResult {
+            success: false,
+            url: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+/// 停止预览服务器
+#[tauri::command]
+pub async fn stop_serve(_project_path: String) -> Result<(), String> {
+    // 在Windows上，我们需要终止hugo进程
+    // 这是一个简化实现，实际中可能需要跟踪进程ID
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(&["/F", "/IM", "hugo.exe"])
+            .output();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::process::Command::new("pkill")
+            .args(&["-f", "hugo server"])
+            .output();
+    }
+    Ok(())
+}
+
+/// 检查路径是否存在
+#[tauri::command]
+pub async fn check_path_exists(path: String) -> Result<bool, String> {
+    let p = PathBuf::from(&path);
+    Ok(p.exists())
 }

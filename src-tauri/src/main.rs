@@ -24,6 +24,13 @@ fn main() {
             list_posts,
             read_file,
             save_file,
+            init_blog,
+            check_directory_exists,
+            create_directory,
+            build_site,
+            serve_site,
+            stop_serve,
+            check_path_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

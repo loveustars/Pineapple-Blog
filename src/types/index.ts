@@ -49,4 +49,6 @@ export interface FrontMatter {
   tags: string[]
   categories: string[]
   description?: string
+  // 扩展字段支持各种主题
+  [key: string]: any
 }

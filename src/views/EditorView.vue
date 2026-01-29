@@ -11,46 +11,92 @@
       @save="handleSave"
     >
       <template #actions>
-        <button
-          @click="showPreview = !showPreview"
-          class="px-3 py-1.5 text-sm rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
-          :class="showPreview ? 'bg-primary-100 text-primary-700' : 'text-gray-700'"
-        >
-          <span v-if="showPreview">👁️</span>
-          <span v-else>👁️‍🗨️</span>
-          {{ showPreview ? '隐藏预览' : '显示预览' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- 编辑器模式切换 -->
+          <div class="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <button
+              @click="editorType = 'wysiwyg'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition-all',
+                editorType === 'wysiwyg' 
+                  ? 'bg-white text-primary-700 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-800'
+              ]"
+            >
+              📝 所见即所得
+            </button>
+            <button
+              @click="editorType = 'classic'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition-all',
+                editorType === 'classic' 
+                  ? 'bg-white text-primary-700 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-800'
+              ]"
+            >
+              📄 经典模式
+            </button>
+          </div>
+        </div>
       </template>
     </EditorToolbar>
 
     <!-- Editor Container -->
     <div class="flex-1 flex overflow-hidden min-h-0">
-      <!-- 编辑器面板 -->
+      <!-- 侧边栏：Front Matter 编辑器 -->
       <div 
-        class="flex flex-col overflow-hidden border-r border-gray-200 transition-all duration-300"
-        :class="showPreview ? 'w-1/2' : 'w-full'"
+        class="bg-white border-r border-gray-200 overflow-hidden flex-shrink-0 transition-all duration-300"
+        :class="frontMatterCollapsed ? 'w-0' : 'w-80'"
       >
-        <!-- Front Matter 编辑器 -->
-        <FrontMatterEditor
-          :front-matter="frontMatter"
-          :collapsed="frontMatterCollapsed"
+        <ThemeFrontMatterEditor
+          v-show="!frontMatterCollapsed"
+          :theme="currentTheme"
+          :data="frontMatter"
           @update="handleFrontMatterUpdate"
+          @theme-change="handleThemeChange"
           @toggle="frontMatterCollapsed = !frontMatterCollapsed"
         />
+      </div>
 
-        <!-- Markdown 工具栏 -->
-        <MarkdownToolbar
-          :textarea-ref="textareaRef"
-          @insert="handleInsertText"
+      <!-- 折叠按钮 -->
+      <button
+        @click="frontMatterCollapsed = !frontMatterCollapsed"
+        class="w-6 flex-shrink-0 bg-gray-100 hover:bg-gray-200 flex items-center justify-center border-r border-gray-200 transition-colors"
+        :title="frontMatterCollapsed ? '展开元数据' : '收起元数据'"
+      >
+        <span class="transform transition-transform" :class="{ 'rotate-180': frontMatterCollapsed }">
+          ◀
+        </span>
+      </button>
+
+      <!-- 主编辑区域 -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- WYSIWYG 编辑器 -->
+        <WysiwygEditor
+          v-if="editorType === 'wysiwyg'"
+          ref="wysiwygEditorRef"
+          v-model="markdownContent"
+          @change="handleContentChange"
+          class="flex-1"
         />
 
-        <!-- Markdown 编辑器 -->
-        <textarea
-          ref="textareaRef"
-          v-model="markdownContent"
-          @input="handleContentChange"
-          class="flex-1 w-full p-6 font-mono text-sm resize-none focus:outline-none bg-white overflow-y-auto"
-          placeholder="在这里开始写作...
+        <!-- 经典模式：源码 + 预览 -->
+        <div v-else class="flex-1 flex overflow-hidden">
+          <!-- Markdown 源码编辑器 -->
+          <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-200">
+            <!-- Markdown 工具栏 -->
+            <MarkdownToolbar
+              :textarea-ref="textareaRef"
+              @insert="handleInsertText"
+            />
+
+            <!-- 源码编辑 -->
+            <textarea
+              ref="textareaRef"
+              v-model="markdownContent"
+              @input="handleContentChange"
+              class="flex-1 w-full p-6 font-mono text-sm resize-none focus:outline-none bg-white overflow-y-auto"
+              placeholder="在这里开始写作...
 
 # 我的第一篇文章
 
@@ -62,16 +108,15 @@
 - 列表项 2
 
 **粗体** 和 *斜体*"
-          spellcheck="false"
-        ></textarea>
-      </div>
+              spellcheck="false"
+            ></textarea>
+          </div>
 
-      <!-- 预览面板 -->
-      <div 
-        v-if="showPreview"
-        class="w-1/2 overflow-hidden transition-all duration-300"
-      >
-        <MarkdownPreview :html="previewHtml" />
+          <!-- 预览面板 -->
+          <div class="flex-1 overflow-hidden">
+            <MarkdownPreview :html="previewHtml" />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -97,7 +142,10 @@ import EditorStatusBar from '@/components/EditorStatusBar.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import FrontMatterEditor from '@/components/FrontMatterEditor.vue'
 import MarkdownToolbar from '@/components/MarkdownToolbar.vue'
+import WysiwygEditor from '@/components/WysiwygEditor.vue'
+import ThemeFrontMatterEditor from '@/components/ThemeFrontMatterEditor.vue'
 import type { FrontMatter } from '@/types'
+import type { HugoTheme } from '@/utils/themeConfig'
 
 const router = useRouter()
 const route = useRoute()
@@ -116,12 +164,15 @@ const frontMatter = ref<FrontMatter>({
 const originalContent = ref('')
 const saving = ref(false)
 const lastSaved = ref<Date | null>(null)
-const showPreview = ref(true)
 const previewHtml = ref('')
 const frontMatterCollapsed = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const wysiwygEditorRef = ref<InstanceType<typeof WysiwygEditor> | null>(null)
+const editorType = ref<'wysiwyg' | 'classic'>('wysiwyg')
+const currentTheme = ref<HugoTheme>('default')
+const frontMatterFormat = ref<'yaml' | 'toml'>('yaml') // 记住原始格式
 
-const fullContent = computed(() => serializeHugoPost(frontMatter.value, markdownContent.value))
+const fullContent = computed(() => serializeHugoPost(frontMatter.value, markdownContent.value, frontMatterFormat.value))
 const hasUnsavedChanges = computed(() => fullContent.value !== originalContent.value)
 const stats = computed(() => useMarkdownStats(markdownContent.value))
 
@@ -137,9 +188,21 @@ const handleContentChange = () => {
   }, 3000)
 }
 
-const handleFrontMatterUpdate = (updated: FrontMatter) => {
-  frontMatter.value = { ...updated }
+const handleFrontMatterUpdate = (updated: Record<string, any>) => {
+  // 保留必要的基础字段，合并其他字段
+  frontMatter.value = { 
+    title: updated.title || frontMatter.value.title,
+    date: updated.date || frontMatter.value.date,
+    draft: updated.draft ?? frontMatter.value.draft,
+    tags: updated.tags || frontMatter.value.tags,
+    categories: updated.categories || frontMatter.value.categories,
+    ...updated  // 包含主题特定的字段
+  }
   handleContentChange()
+}
+
+const handleThemeChange = (theme: HugoTheme) => {
+  currentTheme.value = theme
 }
 
 const handleInsertText = (text: string, cursorOffset: number = 0) => {
@@ -200,7 +263,7 @@ const loadFile = async () => {
   }
 
   filePath.value = postPath
-  fileName.value = postPath.split('/').pop() || '未命名文档'
+  fileName.value = postPath.split(/[/\\]/).pop() || '未命名文档'
 
   try {
     const fileContent = await invoke<string>('read_file', {
@@ -209,6 +272,7 @@ const loadFile = async () => {
     
     // 解析 Hugo 文章结构
     const parsed = parseHugoPost(fileContent)
+    frontMatterFormat.value = parsed.format // 记住原始格式（yaml 或 toml）
     frontMatter.value = {
       ...parsed.frontMatter,
       date: formatDateForInput(parsed.frontMatter.date),
@@ -231,7 +295,7 @@ const updatePreview = debounce(async () => {
 }, 300)
 
 watch(markdownContent, () => {
-  if (showPreview.value) {
+  if (editorType.value === 'classic') {
     updatePreview()
   }
 })

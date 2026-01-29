@@ -1,21 +1,30 @@
 <template>
-  <div class="h-full flex flex-col items-center justify-center p-8">
+  <div class="h-full overflow-y-auto flex flex-col items-center justify-center p-8">
     <div class="max-w-4xl w-full">
       <!-- Welcome Section -->
       <div class="text-center mb-12">
-        <h2 class="text-4xl font-bold text-gray-800 mb-4">欢迎使用 Pineappleblog Editor</h2>
+        <h2 class="text-4xl font-bold text-gray-800 mb-4">🍍 欢迎使用 Pineappleblog Editor</h2>
         <p class="text-gray-600 text-lg">轻松创建和管理您的静态博客</p>
       </div>
 
       <!-- Action Buttons -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <button
-          @click="showCreateDialog = true"
+          @click="$router.push('/create-blog')"
           class="p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition border-2 border-primary-200 hover:border-primary-400 group"
         >
+          <div class="text-6xl mb-4">✨</div>
+          <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-primary-600">创建新博客</h3>
+          <p class="text-gray-600">选择主题，生成完整的博客项目</p>
+        </button>
+
+        <button
+          @click="showCreateDialog = true"
+          class="p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition border-2 border-blue-200 hover:border-blue-400 group"
+        >
           <div class="text-6xl mb-4">📦</div>
-          <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-primary-600">创建新项目</h3>
-          <p class="text-gray-600">从头开始创建一个全新的博客项目</p>
+          <h3 class="text-2xl font-bold text-gray-800 mb-2 group-hover:text-blue-600">空白项目</h3>
+          <p class="text-gray-600">用 Hugo 初始化空项目</p>
         </button>
 
         <button
@@ -36,7 +45,8 @@
             v-for="project in recentProjects"
             :key="project.id"
             @click="handleOpenRecentProject(project)"
-            class="w-full text-left p-4 rounded-lg hover:bg-gray-50 transition border border-gray-200 hover:border-primary-300"
+            :disabled="installingTheme"
+            class="w-full text-left p-4 rounded-lg hover:bg-gray-50 transition border border-gray-200 hover:border-primary-300 disabled:opacity-50"
           >
             <div class="flex items-center justify-between">
               <div>
@@ -48,6 +58,17 @@
               </div>
             </div>
           </button>
+        </div>
+      </div>
+      
+      <!-- 主题安装进度对话框 -->
+      <div v-if="installingTheme" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+          <h3 class="text-xl font-bold mb-4">正在安装主题</h3>
+          <div class="flex items-center gap-3">
+            <div class="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+            <span class="text-gray-600">{{ installProgress }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -128,7 +149,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, message, confirm } from '@tauri-apps/plugin-dialog'
+import { Command } from '@tauri-apps/plugin-shell'
+import { invoke } from '@tauri-apps/api/core'
 import { useProjectStore } from '@/stores/projectStore'
 import { useProject } from '@/composables/useProject'
 import type { Project } from '@/types'
@@ -144,7 +167,95 @@ const newProject = ref({
   engine: 'Hugo' as 'Hugo',
 })
 
+// 主题安装状态
+const installingTheme = ref(false)
+const installProgress = ref('')
+
 const recentProjects = computed(() => projectStore.recentProjects)
+
+// 主题仓库信息
+// 注意: tag 是 git tag，不能用 -b 参数，需要先 clone 再 checkout
+const themeRepoInfo: Record<string, { repo: string; tag?: string; folder: string }> = {
+  stack: { repo: 'https://github.com/CaiJimmy/hugo-theme-stack', tag: 'v3.34.1', folder: 'hugo-theme-stack' },
+  papermod: { repo: 'https://github.com/adityatelange/hugo-PaperMod', folder: 'PaperMod' },
+  loveit: { repo: 'https://github.com/dillonzq/LoveIt', tag: 'v0.3.0', folder: 'LoveIt' },
+  blowfish: { repo: 'https://github.com/nunocoracao/blowfish', folder: 'blowfish' },
+  congo: { repo: 'https://github.com/jpanther/congo', folder: 'congo' },
+  docsy: { repo: 'https://github.com/google/docsy', folder: 'docsy' },
+}
+
+// 检查主题是否已安装
+async function checkThemeInstalled(projectPath: string, theme: string): Promise<boolean> {
+  if (!theme || theme === 'default') return true
+  
+  const themeInfo = themeRepoInfo[theme.toLowerCase()]
+  if (!themeInfo) return true // 未知主题，假设已安装
+  
+  try {
+    // 检查 themes 文件夹下是否有主题
+    const exists = await invoke<boolean>('check_path_exists', { 
+      path: `${projectPath}/themes/${themeInfo.folder}`
+    })
+    return exists
+  } catch (e) {
+    // 如果命令不存在，fallback
+    return true
+  }
+}
+
+// 安装主题
+async function installTheme(projectPath: string, theme: string): Promise<boolean> {
+  const themeInfo = themeRepoInfo[theme.toLowerCase()]
+  if (!themeInfo) return false
+
+  installingTheme.value = true
+  installProgress.value = '正在初始化 Git 仓库...'
+  
+  try {
+    // 1. 初始化 git 仓库
+    try {
+      const gitInit = Command.create('git', ['init'], { cwd: projectPath })
+      await gitInit.execute()
+    } catch (e) {
+      // 可能已经是 git 仓库
+    }
+    
+    installProgress.value = `正在下载 ${theme} 主题...`
+    
+    // 2. 使用 git submodule add 安装主题（不带 -b 参数，因为可能是 tag）
+    const submoduleArgs = ['submodule', 'add', themeInfo.repo, `themes/${themeInfo.folder}`]
+    const gitSubmodule = Command.create('git', submoduleArgs, { cwd: projectPath })
+    const output = await gitSubmodule.execute()
+    
+    // 检查是否需要添加已存在的 repo
+    if (output.code !== 0 && output.stderr && output.stderr.includes('already exists')) {
+      installProgress.value = '主题目录已存在，尝试添加到索引...'
+      const addExisting = Command.create('git', ['submodule', 'add', themeInfo.repo, `themes/${themeInfo.folder}`], { cwd: projectPath })
+      await addExisting.execute()
+    }
+    
+    // 3. 如果指定了 tag，进入 submodule 目录并 checkout 到指定 tag
+    if (themeInfo.tag) {
+      installProgress.value = `正在切换到 ${themeInfo.tag} 版本...`
+      const themePath = `${projectPath}/themes/${themeInfo.folder}`
+      const gitCheckout = Command.create('git', ['checkout', themeInfo.tag], { cwd: themePath })
+      const checkoutResult = await gitCheckout.execute()
+      
+      if (checkoutResult.code !== 0) {
+        console.warn('Checkout warning:', checkoutResult.stderr)
+      }
+    }
+    
+    installProgress.value = '主题安装完成！'
+    return true
+  } catch (err) {
+    console.error('主题安装失败:', err)
+    installProgress.value = `安装失败: ${err}`
+    return false
+  } finally {
+    installingTheme.value = false
+  }
+}
 
 const selectProjectPath = async () => {
   const selected = await open({
@@ -183,6 +294,28 @@ const handleOpenProject = async () => {
   if (selected && typeof selected === 'string') {
     const project = await openProject(selected)
     if (project) {
+      // 检查主题是否已安装
+      if (project.theme && project.theme !== 'default') {
+        const themeInstalled = await checkThemeInstalled(project.path, project.theme)
+        
+        if (!themeInstalled) {
+          const shouldInstall = await confirm(
+            `检测到项目使用 ${project.theme} 主题，但主题文件不存在。\n是否自动下载并安装主题？`,
+            { title: '安装主题', kind: 'info' }
+          )
+          
+          if (shouldInstall) {
+            const success = await installTheme(project.path, project.theme)
+            if (!success) {
+              await message(
+                `主题安装失败，请手动安装：\ngit submodule add <theme-repo> themes/<theme-folder>`,
+                { title: '提示', kind: 'warning' }
+              )
+            }
+          }
+        }
+      }
+      
       projectStore.setCurrentProject(project)
       projectStore.addProject(project)
       router.push({ name: 'project', params: { id: project.id } })
@@ -191,6 +324,28 @@ const handleOpenProject = async () => {
 }
 
 const handleOpenRecentProject = async (project: Project) => {
+  // 检查主题是否已安装
+  if (project.theme && project.theme !== 'default') {
+    const themeInstalled = await checkThemeInstalled(project.path, project.theme)
+    
+    if (!themeInstalled) {
+      const shouldInstall = await confirm(
+        `检测到项目使用 ${project.theme} 主题，但主题文件不存在。\n是否自动下载并安装主题？`,
+        { title: '安装主题', kind: 'info' }
+      )
+      
+      if (shouldInstall) {
+        const success = await installTheme(project.path, project.theme)
+        if (!success) {
+          await message(
+            `主题安装失败，请手动安装：\ngit submodule add <theme-repo> themes/<theme-folder>`,
+            { title: '提示', kind: 'warning' }
+          )
+        }
+      }
+    }
+  }
+  
   projectStore.setCurrentProject(project)
   router.push({ name: 'project', params: { id: project.id } })
 }
