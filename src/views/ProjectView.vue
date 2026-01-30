@@ -137,10 +137,10 @@
         </button>
         <button
           @click="handleServe"
-          :disabled="serving"
-          class="w-full px-4 py-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition text-sm disabled:opacity-50"
+          class="w-full px-4 py-2 text-white rounded-lg transition text-sm"
+          :class="serving ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'"
         >
-          {{ serving ? '🌐 运行中...' : '👁️ 预览网站' }}
+          {{ serving ? '⏹ 停止预览' : '▶ 预览网站' }}
         </button>
         <button
           @click="router.push('/')"
@@ -359,6 +359,19 @@ const handleBuild = async () => {
 const handleServe = async () => {
   if (!currentProject.value) return
   
+  // 如果已经在运行，则停止服务器
+  if (serving.value) {
+    try {
+      await invoke('stop_serve', { projectPath: currentProject.value.path })
+      serving.value = false
+      serveUrl.value = ''
+    } catch (e: any) {
+      alert(`停止预览服务器失败: ${e}`)
+    }
+    return
+  }
+  
+  // 启动服务器
   serving.value = true
   
   try {

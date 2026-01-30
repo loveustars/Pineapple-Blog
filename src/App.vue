@@ -39,10 +39,10 @@
           <button
             v-if="currentProject"
             @click="handleServe"
-            class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
-            :disabled="isServing"
+            class="px-4 py-2 text-white rounded-lg transition"
+            :class="isServing ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'"
           >
-            {{ isServing ? '运行中...' : '启动预览' }}
+            {{ isServing ? '⏹ 停止预览' : '▶ 启动预览' }}
           </button>
         </div>
       </div>
@@ -67,6 +67,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { RouterView, useRouter, useRoute } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
 import { useProjectStore } from '@/stores/projectStore'
 import { useProject } from '@/composables/useProject'
 
@@ -142,6 +143,23 @@ const handleBuild = async () => {
 const handleServe = async () => {
   if (!currentProject.value) return
 
+  // 如果已经在运行，则停止服务器
+  if (isServing.value) {
+    statusMessage.value = '正在停止预览服务器...'
+    try {
+      await invoke('stop_serve', { projectPath: currentProject.value.path })
+      isServing.value = false
+      statusMessage.value = '预览服务器已停止'
+      setTimeout(() => {
+        statusMessage.value = ''
+      }, 3000)
+    } catch (e) {
+      statusMessage.value = `停止失败: ${e}`
+    }
+    return
+  }
+
+  // 启动服务器
   isServing.value = true
   statusMessage.value = '正在启动预览服务器...'
 
