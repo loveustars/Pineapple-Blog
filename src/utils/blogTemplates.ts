@@ -1501,18 +1501,22 @@ export function getThemeDirectoryInfo(theme: HugoTheme): {
 }
 
 /**
- * 主题安装命令
- * 注意：对于使用 tag 的主题，需要分两步执行
+ * 主题安装命令（按用户手动测试成功的四步流程）
  */
 export function getThemeInstallCommand(theme: HugoTheme): string {
   const commands: Record<HugoTheme, string> = {
-    // Stack 和 LoveIt 使用 tag，需要先 add 再 checkout
-    stack: 'git submodule add https://github.com/CaiJimmy/hugo-theme-stack themes/hugo-theme-stack && cd themes/hugo-theme-stack && git checkout v3.34.1',
-    papermod: 'git submodule add https://github.com/adityatelange/hugo-PaperMod themes/PaperMod',
-    loveit: 'git submodule add https://github.com/dillonzq/LoveIt themes/LoveIt && cd themes/LoveIt && git checkout v0.3.0',
-    blowfish: 'git submodule add https://github.com/nunocoracao/blowfish themes/blowfish',
-    congo: 'git submodule add https://github.com/jpanther/congo themes/congo',
-    docsy: 'git submodule add https://github.com/google/docsy themes/docsy',
+    // Stack: clone 后 checkout v3.34.1
+    stack: 'git init && git submodule add https://github.com/CaiJimmy/hugo-theme-stack themes/hugo-theme-stack && cd themes/hugo-theme-stack && git checkout v3.34.1',
+    // PaperMod: 直接 clone
+    papermod: 'git init && git submodule add https://github.com/adityatelange/hugo-PaperMod themes/PaperMod',
+    // LoveIt: clone 后 checkout v0.3.0
+    loveit: 'git init && git submodule add https://github.com/dillonzq/LoveIt themes/LoveIt && cd themes/LoveIt && git checkout v0.3.0',
+    // Blowfish: 使用 -b main
+    blowfish: 'git init && git submodule add -b main https://github.com/nunocoracao/blowfish themes/blowfish',
+    // Congo: 直接 clone
+    congo: 'git init && git submodule add https://github.com/jpanther/congo themes/congo',
+    // Docsy: 直接 clone
+    docsy: 'git init && git submodule add https://github.com/google/docsy themes/docsy',
     default: '',
   }
 

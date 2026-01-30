@@ -173,13 +173,12 @@ const installProgress = ref('')
 
 const recentProjects = computed(() => projectStore.recentProjects)
 
-// 主题仓库信息
-// 注意: tag 是 git tag，不能用 -b 参数，需要先 clone 再 checkout
-const themeRepoInfo: Record<string, { repo: string; tag?: string; folder: string }> = {
+// 主题仓库信息（按用户手动操作的四步流程配置）
+const themeRepoInfo: Record<string, { repo: string; tag?: string; branch?: string; folder: string }> = {
   stack: { repo: 'https://github.com/CaiJimmy/hugo-theme-stack', tag: 'v3.34.1', folder: 'hugo-theme-stack' },
   papermod: { repo: 'https://github.com/adityatelange/hugo-PaperMod', folder: 'PaperMod' },
   loveit: { repo: 'https://github.com/dillonzq/LoveIt', tag: 'v0.3.0', folder: 'LoveIt' },
-  blowfish: { repo: 'https://github.com/nunocoracao/blowfish', folder: 'blowfish' },
+  blowfish: { repo: 'https://github.com/nunocoracao/blowfish', branch: 'main', folder: 'blowfish' },
   congo: { repo: 'https://github.com/jpanther/congo', folder: 'congo' },
   docsy: { repo: 'https://github.com/google/docsy', folder: 'docsy' },
 }
@@ -209,44 +208,57 @@ async function installTheme(projectPath: string, theme: string): Promise<boolean
   if (!themeInfo) return false
 
   installingTheme.value = true
-  installProgress.value = '正在初始化 Git 仓库...'
+  installProgress.value = '步骤 1/4: 正在初始化 Git 仓库...'
   
   try {
-    // 1. 初始化 git 仓库
+    // 步骤 1: git init
     try {
-      const gitInit = Command.create('git', ['init'], { cwd: projectPath })
-      await gitInit.execute()
+      const gitInit = Command.create('run-git', ['init'], { cwd: projectPath })
+      const initResult = await gitInit.execute()
+      console.log('git init:', initResult.code, initResult.stdout, initResult.stderr)
     } catch (e) {
-      // 可能已经是 git 仓库
+      console.log('git init 跳过')
     }
     
-    installProgress.value = `正在下载 ${theme} 主题...`
+    installProgress.value = `步骤 2/4: 正在下载 ${theme} 主题...`
     
-    // 2. 使用 git submodule add 安装主题（不带 -b 参数，因为可能是 tag）
-    const submoduleArgs = ['submodule', 'add', themeInfo.repo, `themes/${themeInfo.folder}`]
-    const gitSubmodule = Command.create('git', submoduleArgs, { cwd: projectPath })
+    // 步骤 2: git submodule add
+    const submoduleArgs = ['submodule', 'add']
+    if (themeInfo.branch) {
+      submoduleArgs.push('-b', themeInfo.branch)
+    }
+    submoduleArgs.push(themeInfo.repo, `themes/${themeInfo.folder}`)
+    
+    console.log('执行命令: git', submoduleArgs.join(' '))
+    const gitSubmodule = Command.create('run-git', submoduleArgs, { cwd: projectPath })
     const output = await gitSubmodule.execute()
     
-    // 检查是否需要添加已存在的 repo
-    if (output.code !== 0 && output.stderr && output.stderr.includes('already exists')) {
-      installProgress.value = '主题目录已存在，尝试添加到索引...'
-      const addExisting = Command.create('git', ['submodule', 'add', themeInfo.repo, `themes/${themeInfo.folder}`], { cwd: projectPath })
-      await addExisting.execute()
-    }
+    console.log('git submodule add:', output.code, output.stdout, output.stderr)
     
-    // 3. 如果指定了 tag，进入 submodule 目录并 checkout 到指定 tag
-    if (themeInfo.tag) {
-      installProgress.value = `正在切换到 ${themeInfo.tag} 版本...`
-      const themePath = `${projectPath}/themes/${themeInfo.folder}`
-      const gitCheckout = Command.create('git', ['checkout', themeInfo.tag], { cwd: themePath })
-      const checkoutResult = await gitCheckout.execute()
-      
-      if (checkoutResult.code !== 0) {
-        console.warn('Checkout warning:', checkoutResult.stderr)
+    if (output.code !== 0) {
+      const errorMsg = output.stderr || ''
+      if (errorMsg.includes('already exists')) {
+        installProgress.value = '主题目录已存在，尝试更新...'
+        const gitUpdate = Command.create('run-git', ['submodule', 'update', '--init', '--recursive'], { cwd: projectPath })
+        await gitUpdate.execute()
+      } else {
+        console.error('Git submodule 错误:', errorMsg)
+        throw new Error(errorMsg || '添加 submodule 失败')
       }
     }
     
-    installProgress.value = '主题安装完成！'
+    // 步骤 3: cd themes/xxx
+    const themePath = `${projectPath}/themes/${themeInfo.folder}`
+    
+    // 步骤 4: git checkout tag
+    if (themeInfo.tag) {
+      installProgress.value = `步骤 3/4: 正在切换到 ${themeInfo.tag} 版本...`
+      const gitCheckout = Command.create('run-git', ['checkout', themeInfo.tag], { cwd: themePath })
+      const checkoutResult = await gitCheckout.execute()
+      console.log('git checkout:', checkoutResult.code, checkoutResult.stdout, checkoutResult.stderr)
+    }
+    
+    installProgress.value = '步骤 4/4: 主题安装完成！'
     return true
   } catch (err) {
     console.error('主题安装失败:', err)
