@@ -34,14 +34,25 @@
             <div v-if="loadingPosts" class="text-sm text-gray-500">加载中...</div>
             <div v-else-if="!postsByCategory.posts?.length" class="text-sm text-gray-500">暂无文章</div>
             <div v-else class="space-y-1 max-h-48 overflow-y-auto">
-              <button
+              <div
                 v-for="post in postsByCategory.posts"
                 :key="post.path"
-                @click="openPost(post)"
-                class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                class="group flex items-center gap-1"
               >
-                {{ post.title }}
-              </button>
+                <button
+                  @click="openPost(post)"
+                  class="flex-1 text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                >
+                  {{ post.title }}
+                </button>
+                <button
+                  @click.stop="confirmDeletePost(post)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded transition"
+                  title="删除文章"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
 
@@ -54,14 +65,25 @@
               <span class="text-xs text-gray-500">{{ postsByCategory.pages?.length }}</span>
             </div>
             <div class="space-y-1 max-h-32 overflow-y-auto">
-              <button
+              <div
                 v-for="page in postsByCategory.pages"
                 :key="page.path"
-                @click="openPost(page)"
-                class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                class="group flex items-center gap-1"
               >
-                {{ page.title }}
-              </button>
+                <button
+                  @click="openPost(page)"
+                  class="flex-1 text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                >
+                  {{ page.title }}
+                </button>
+                <button
+                  @click.stop="confirmDeletePost(page)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded transition"
+                  title="删除页面"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
 
@@ -74,14 +96,25 @@
               <span class="text-xs text-gray-500">{{ postsByCategory.docs?.length }}</span>
             </div>
             <div class="space-y-1 max-h-32 overflow-y-auto">
-              <button
+              <div
                 v-for="doc in postsByCategory.docs"
                 :key="doc.path"
-                @click="openPost(doc)"
-                class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                class="group flex items-center gap-1"
               >
-                {{ doc.title }}
-              </button>
+                <button
+                  @click="openPost(doc)"
+                  class="flex-1 text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                >
+                  {{ doc.title }}
+                </button>
+                <button
+                  @click.stop="confirmDeletePost(doc)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded transition"
+                  title="删除文档"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
 
@@ -94,14 +127,25 @@
               <span class="text-xs text-gray-500">{{ postsByCategory.blog?.length }}</span>
             </div>
             <div class="space-y-1 max-h-32 overflow-y-auto">
-              <button
+              <div
                 v-for="post in postsByCategory.blog"
                 :key="post.path"
-                @click="openPost(post)"
-                class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                class="group flex items-center gap-1"
               >
-                {{ post.title }}
-              </button>
+                <button
+                  @click="openPost(post)"
+                  class="flex-1 text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                >
+                  {{ post.title }}
+                </button>
+                <button
+                  @click.stop="confirmDeletePost(post)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded transition"
+                  title="删除博客"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
 
@@ -114,14 +158,25 @@
               <span class="text-xs text-gray-500">{{ postsByCategory.other?.length }}</span>
             </div>
             <div class="space-y-1 max-h-32 overflow-y-auto">
-              <button
+              <div
                 v-for="item in postsByCategory.other"
                 :key="item.path"
-                @click="openPost(item)"
-                class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                class="group flex items-center gap-1"
               >
-                {{ item.title }}
-              </button>
+                <button
+                  @click="openPost(item)"
+                  class="flex-1 text-left px-2 py-1.5 text-sm rounded hover:bg-white transition text-gray-700 truncate"
+                >
+                  {{ item.title }}
+                </button>
+                <button
+                  @click.stop="confirmDeletePost(item)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded transition"
+                  title="删除文件"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -305,6 +360,21 @@ const openPost = (post: PostInfo) => {
     params: { id: currentProject.value?.id },
     query: { postPath: post.path }
   })
+}
+
+// 确认删除文章
+const confirmDeletePost = async (post: PostInfo) => {
+  if (!confirm(`确定要删除 "${post.title}" 吗？此操作不可恢复！`)) {
+    return
+  }
+  
+  try {
+    await invoke('delete_post', { filePath: post.path })
+    alert('删除成功！')
+    await loadPosts()
+  } catch (err) {
+    alert(`删除失败: ${err}`)
+  }
 }
 
 const handleCreatePost = async () => {

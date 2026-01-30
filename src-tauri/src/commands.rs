@@ -372,3 +372,23 @@ pub async fn check_path_exists(path: String) -> Result<bool, String> {
     let p = PathBuf::from(&path);
     Ok(p.exists())
 }
+
+/// 删除文章
+#[tauri::command]
+pub async fn delete_post(file_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&file_path);
+    
+    if !path.exists() {
+        return Err("文件不存在".to_string());
+    }
+    
+    // 检查是否是 markdown 文件
+    if path.extension().map(|e| e != "md").unwrap_or(true) {
+        return Err("只能删除 Markdown 文件".to_string());
+    }
+    
+    fs::remove_file(&path)
+        .map_err(|e| format!("删除文件失败: {}", e))?;
+    
+    Ok(())
+}

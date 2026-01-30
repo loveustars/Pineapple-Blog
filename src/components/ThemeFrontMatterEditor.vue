@@ -1,13 +1,18 @@
 <template>
   <div class="theme-front-matter-editor bg-white h-full flex flex-col">
-    <!-- 主题选择器 -->
+    <!-- 主题显示（只读） -->
     <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-lg">{{ currentThemeConfig?.icon }}</span>
           <span class="font-medium text-gray-800">{{ currentThemeConfig?.name }}</span>
         </div>
+        <!-- 只读模式下不显示选择器 -->
+        <span v-if="readonlyTheme" class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+          项目主题
+        </span>
         <select
+          v-else
           v-model="selectedTheme"
           @change="handleThemeChange"
           class="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -201,10 +206,12 @@ import {
 interface Props {
   theme?: HugoTheme
   data: Record<string, any>
+  readonlyTheme?: boolean  // 是否只读主题（从项目读取，不可更改）
 }
 
 const props = withDefaults(defineProps<Props>(), {
   theme: 'default',
+  readonlyTheme: false,
 })
 
 const emit = defineEmits<{

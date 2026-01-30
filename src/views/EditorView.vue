@@ -52,8 +52,8 @@
           v-show="!frontMatterCollapsed"
           :theme="currentTheme"
           :data="frontMatter"
+          :readonly-theme="true"
           @update="handleFrontMatterUpdate"
-          @theme-change="handleThemeChange"
           @toggle="frontMatterCollapsed = !frontMatterCollapsed"
         />
       </div>
@@ -137,6 +137,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useMarkdownStats } from '@/composables/useEditor'
 import { useMarkdownPreview } from '@/composables/useMarkdownPreview'
 import { parseHugoPost, serializeHugoPost, formatDateForInput } from '@/utils/frontMatter'
+import { useProjectStore } from '@/stores/projectStore'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import EditorStatusBar from '@/components/EditorStatusBar.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
@@ -149,6 +150,7 @@ import type { HugoTheme } from '@/utils/themeConfig'
 
 const router = useRouter()
 const route = useRoute()
+const projectStore = useProjectStore()
 const { parse, debounce } = useMarkdownPreview()
 
 const filePath = ref('')
@@ -169,7 +171,11 @@ const frontMatterCollapsed = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const wysiwygEditorRef = ref<InstanceType<typeof WysiwygEditor> | null>(null)
 const editorType = ref<'wysiwyg' | 'classic'>('wysiwyg')
-const currentTheme = ref<HugoTheme>('default')
+// 从项目读取主题，默认为 default
+const currentTheme = computed<HugoTheme>(() => {
+  const theme = projectStore.currentProject?.theme?.toLowerCase() || 'default'
+  return theme as HugoTheme
+})
 const frontMatterFormat = ref<'yaml' | 'toml'>('yaml') // 记住原始格式
 
 const fullContent = computed(() => serializeHugoPost(frontMatter.value, markdownContent.value, frontMatterFormat.value))
@@ -199,10 +205,6 @@ const handleFrontMatterUpdate = (updated: Record<string, any>) => {
     ...updated  // 包含主题特定的字段
   }
   handleContentChange()
-}
-
-const handleThemeChange = (theme: HugoTheme) => {
-  currentTheme.value = theme
 }
 
 const handleInsertText = (text: string, cursorOffset: number = 0) => {

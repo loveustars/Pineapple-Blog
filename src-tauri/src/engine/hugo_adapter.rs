@@ -94,22 +94,54 @@ impl SiteEngine for HugoAdapter {
     }
 
     async fn new_post(&self, path: &Path, title: &str) -> Result<String> {
-        let post_path = format!("content/posts/{}.md", title.replace(" ", "-").to_lowercase());
+        // 根据项目结构确定文章目录
+        // 优先检查是否存在 content/posts/ 或 content/post/ 目录
+        let content_dir = path.join("content");
+        let posts_dir = if content_dir.join("posts").exists() {
+            content_dir.join("posts")
+        } else if content_dir.join("post").exists() {
+            content_dir.join("post")
+        } else {
+            // 默认创建 content/posts/ 目录
+            let posts = content_dir.join("posts");
+            std::fs::create_dir_all(&posts).map_err(|e| AppError::EngineError(e.to_string()))?;
+            posts
+        };
         
-        let output = execute_command(
-            &self.binary_path,
-            &["new", &post_path],
-            path,
-        )
-        .await?;
-
-        if !output.status.success() {
-            return Err(AppError::EngineError(
-                String::from_utf8_lossy(&output.stderr).to_string(),
-            ));
+        // 生成文件名
+        let filename = format!("{}.md", title.replace(" ", "-").to_lowercase());
+        let file_path = posts_dir.join(&filename);
+        
+        // 检查文件是否已存在
+        if file_path.exists() {
+            return Err(AppError::EngineError(format!("文件已存在: {}", file_path.display())));
         }
+        
+        // 生成 Front Matter（使用 YAML 格式，与大多数主题兼容）
+        let now = chrono::Local::now();
+        let date_str = now.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+        
+        let content = format!(
+r#"---
+title: "{}"
+date: {}
+draft: true
+tags: []
+categories: []
+---
 
-        Ok(post_path)
+在这里开始写作...
+"#, title, date_str);
+        
+        // 写入文件
+        std::fs::write(&file_path, content).map_err(|e| AppError::EngineError(e.to_string()))?;
+        
+        // 返回相对路径
+        let relative_path = file_path.strip_prefix(path)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| file_path.to_string_lossy().to_string());
+        
+        Ok(relative_path)
     }
 
     fn version(&self) -> Result<String> {
