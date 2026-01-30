@@ -32,6 +32,8 @@ fn main() {
             stop_serve,
             check_path_exists,
             delete_post,
+            read_hugo_config,
+            save_hugo_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

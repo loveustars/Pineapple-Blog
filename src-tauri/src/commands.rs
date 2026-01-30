@@ -392,3 +392,66 @@ pub async fn delete_post(file_path: String) -> Result<(), String> {
     
     Ok(())
 }
+
+/// Hugo 配置文件信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HugoConfigInfo {
+    pub path: String,
+    pub format: String, // "yaml", "toml", "json"
+    pub content: String,
+}
+
+/// 社交链接配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SocialLink {
+    pub name: String,
+    pub url: String,
+}
+
+/// 读取 Hugo 配置文件
+#[tauri::command]
+pub async fn read_hugo_config(project_path: String) -> Result<HugoConfigInfo, String> {
+    let base_path = PathBuf::from(&project_path);
+    
+    // Hugo 配置文件可能的名称和格式
+    let config_files = [
+        ("hugo.yaml", "yaml"),
+        ("hugo.yml", "yaml"),
+        ("hugo.toml", "toml"),
+        ("hugo.json", "json"),
+        ("config.yaml", "yaml"),
+        ("config.yml", "yaml"),
+        ("config.toml", "toml"),
+        ("config.json", "json"),
+    ];
+    
+    for (filename, format) in config_files.iter() {
+        let config_path = base_path.join(filename);
+        if config_path.exists() {
+            let content = fs::read_to_string(&config_path)
+                .map_err(|e| format!("读取配置文件失败: {}", e))?;
+            return Ok(HugoConfigInfo {
+                path: config_path.to_string_lossy().to_string(),
+                format: format.to_string(),
+                content,
+            });
+        }
+    }
+    
+    Err("未找到 Hugo 配置文件".to_string())
+}
+
+/// 保存 Hugo 配置文件
+#[tauri::command]
+pub async fn save_hugo_config(config_path: String, content: String) -> Result<(), String> {
+    let path = PathBuf::from(&config_path);
+    
+    if !path.exists() {
+        return Err("配置文件不存在".to_string());
+    }
+    
+    fs::write(&path, content)
+        .map_err(|e| format!("保存配置文件失败: {}", e))?;
+    
+    Ok(())
+}

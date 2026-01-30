@@ -184,6 +184,12 @@
 
       <div class="p-4 border-t border-gray-200 space-y-2">
         <button
+          @click="showSettingsDialog = true"
+          class="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition text-sm"
+        >
+          ⚙️ 项目设置
+        </button>
+        <button
           @click="handleBuild"
           :disabled="building"
           class="w-full px-4 py-2 text-white bg-green-500 rounded-lg hover:bg-green-600 transition text-sm disabled:opacity-50"
@@ -277,6 +283,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Project Settings Dialog -->
+    <ProjectSettings
+      v-if="showSettingsDialog"
+      :project-path="currentProject?.path || ''"
+      @close="showSettingsDialog = false"
+      @saved="handleSettingsSaved"
+    />
   </div>
 </template>
 
@@ -287,6 +301,7 @@ import { useProjectStore } from '@/stores/projectStore'
 import { useProject } from '@/composables/useProject'
 import { invoke } from '@tauri-apps/api/core'
 import type { Project, PostInfo } from '@/types'
+import ProjectSettings from '@/components/ProjectSettings.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -294,6 +309,7 @@ const projectStore = useProjectStore()
 const { createPost, listPosts, loading, error } = useProject()
 
 const showNewPostDialog = ref(false)
+const showSettingsDialog = ref(false)
 const newPostTitle = ref('')
 const successMessage = ref('')
 const posts = ref<PostInfo[]>([])
@@ -375,6 +391,12 @@ const confirmDeletePost = async (post: PostInfo) => {
   } catch (err) {
     alert(`删除失败: ${err}`)
   }
+}
+
+// 处理设置保存
+const handleSettingsSaved = () => {
+  alert('设置已保存！')
+  showSettingsDialog.value = false
 }
 
 const handleCreatePost = async () => {
